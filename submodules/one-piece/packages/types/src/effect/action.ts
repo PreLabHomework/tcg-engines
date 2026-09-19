@@ -8,6 +8,7 @@ export type Action =
   | DelayedAction
   | ModifyPowerAction
   | ModifyCounterAction
+  | SetCounterAction
   | KoAction
   | DrawAction
   | RedrawHandAction
@@ -30,6 +31,7 @@ export type Action =
   | AddToLifeAction
   | RemoveFromLifeAction
   | SetPowerAction
+  | SetBasePowerAction
   | SetBasePowerFromAction
   | CopyPowerAction
   | SwapBasePowerAction
@@ -114,6 +116,22 @@ export interface ModifyPowerAction {
     target: Target;
     size: number;
   };
+  condition?: Condition;
+}
+
+/**
+ * Assign an absolute Counter value, for printed text reading "the counter of
+ * ... becomes +N". Distinct from `modifyCounter`, which is additive.
+ *
+ * The comprehensive rules (v1.2.0) define conflict resolution for base power
+ * (4-9-2-1) and base cost (4-9-2-2) but say nothing about counters. Colliding
+ * assignments with differing values are therefore reported as unsupported
+ * rather than resolved by analogy.
+ */
+export interface SetCounterAction {
+  action: "setCounter";
+  target: Target;
+  value: number;
   condition?: Condition;
 }
 
@@ -329,6 +347,20 @@ export interface RemoveFromLifeAction {
 
 export interface SetPowerAction {
   action: "setPower";
+  target: Target;
+  value: number;
+  duration: Duration;
+  condition?: Condition;
+}
+
+/**
+ * Set a card's base power to a literal value while preserving other modifiers.
+ * Per 4-9-2-1, when several effects set the same card's base power, the highest
+ * set value applies; this action therefore records an absolute value rather
+ * than a delta.
+ */
+export interface SetBasePowerAction {
+  action: "setBasePower";
   target: Target;
   value: number;
   duration: Duration;

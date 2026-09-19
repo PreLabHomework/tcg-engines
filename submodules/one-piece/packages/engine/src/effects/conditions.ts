@@ -58,7 +58,10 @@ function evaluateCondition(
             : (leader.traits ?? []).some((trait) => trait.includes(condition.trait)),
       };
     case "leaderMulticolored":
-      return { supported: true, matches: leader.color.length > 1 };
+      return {
+        supported: true,
+        matches: leader.color.length > 1 === (condition.value ?? true),
+      };
     case "leaderColor":
       return { supported: true, matches: leader.color.includes(condition.color) };
     case "zoneCount": {

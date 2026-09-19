@@ -170,6 +170,12 @@ export interface CompareHandsCondition {
 
 export interface LeaderMulticoloredCondition {
   condition: "leaderMulticolored";
+  /**
+   * Defaults to `true` (matches a multicolored Leader). Pass `false` for
+   * printed text reading "your monocolored Leader", which has no other
+   * representation.
+   */
+  value?: boolean;
 }
 
 export interface DonFieldCountCondition {

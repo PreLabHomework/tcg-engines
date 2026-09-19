@@ -19,6 +19,7 @@ import {
   getPermanentKeywords,
   getPermanentModifierTotal,
   getPermanentSetBasePower,
+  getPermanentSetCounter,
   getPermanentSetCost,
   isRefreshPreventedByPermanentEffect,
 } from "./effects/permanent.ts";
@@ -86,7 +87,12 @@ export function getCardCounter(state: MatchState, instanceId: string): number {
   if (card.cardType !== "character") {
     return 0;
   }
-  return (card.counter ?? 0) + getPermanentModifierTotal(state, instanceId, "counter");
+  // An absolute assignment replaces the printed Counter; additive modifiers
+  // then apply on top, mirroring how set base power composes in getCardPower.
+  return (
+    (getPermanentSetCounter(state, instanceId) ?? card.counter ?? 0) +
+    getPermanentModifierTotal(state, instanceId, "counter")
+  );
 }
 
 export function leaderLife(card: OPCard): number {

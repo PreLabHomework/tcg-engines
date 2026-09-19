@@ -551,6 +551,94 @@ export function getPermanentModifierTotal(
 
 // 4-9-2-1: permanent effects that set a base power compete by absolute value;
 // the highest set value wins instead of stacking as additive deltas.
+/**
+ * Resolve an absolute Counter assignment (`setCounter`) for a card.
+ *
+ * Returns `null` when no assignment applies. The comprehensive rules define
+ * conflict resolution for base power (4-9-2-1) and base cost (4-9-2-2) but are
+ * silent on Counter values, so two simultaneously active assignments with
+ * differing values are surfaced as an error rather than resolved by analogy to
+ * those clauses. Identical values collide harmlessly and resolve normally.
+ */
+export function getPermanentSetCounter(state: MatchState, targetInstanceId: string): number | null {
+  const evaluationKey = `setCounter:${targetInstanceId}`;
+  const active = activeEvaluations.get(state) ?? new Set<string>();
+  if (active.has(evaluationKey)) {
+    return null;
+  }
+  activeEvaluations.set(state, active);
+  active.add(evaluationKey);
+
+  try {
+    const applied: number[] = [];
+    for (const source of Object.values(state.cards)) {
+      const sourceIsSelfInHand = source.instanceId === targetInstanceId && source.zone === "hand";
+      if (
+        (!sourceIsInPlay(state, source.instanceId) && !sourceIsSelfInHand) ||
+        sourceEffectsAreNegated(state, source.instanceId)
+      ) {
+        continue;
+      }
+      const card = getCard(source.cardId);
+      for (const effect of card.effects?.permanentEffects ?? []) {
+        const setActions = effect.actions.filter((action) => action.action === "setCounter");
+        if (setActions.length === 0) {
+          continue;
+        }
+        const conditions = evaluateConditions(
+          state,
+          source.controller,
+          source.instanceId,
+          effect.conditions,
+        );
+        if (!conditions.supported || !conditions.matches) {
+          continue;
+        }
+        for (const action of setActions) {
+          if (action.action !== "setCounter") {
+            continue;
+          }
+          if (action.condition) {
+            const actionCondition = evaluateConditions(
+              state,
+              source.controller,
+              source.instanceId,
+              [action.condition],
+            );
+            if (!actionCondition.supported || !actionCondition.matches) {
+              continue;
+            }
+          }
+          const pool = candidatePoolForTarget(
+            state,
+            source.controller,
+            source.instanceId,
+            action.target,
+          );
+          if (pool.supported && pool.candidateIds.includes(targetInstanceId)) {
+            applied.push(action.value);
+          }
+        }
+      }
+    }
+
+    if (applied.length === 0) {
+      return null;
+    }
+    const distinct = new Set(applied);
+    if (distinct.size > 1) {
+      throw new Error(
+        `Conflicting setCounter effects on ${targetInstanceId} (values ${[...distinct]
+          .sort((a, b) => a - b)
+          .join(", ")}): rules semantics unspecified.`,
+      );
+    }
+    return applied[0] ?? null;
+  } finally {
+    active.delete(evaluationKey);
+  }
+}
+
 export function getPermanentSetBasePower(
   state: MatchState,
   targetInstanceId: string,

@@ -1889,7 +1889,9 @@ export function processEffectAction(
       }
       return true;
     case "modifyCounter":
-      // Counter modifiers are continuous effects evaluated from their source card.
+    case "setCounter":
+      // Counter modifiers and assignments are continuous effects evaluated from
+      // their source card rather than applied at resolution time.
       return false;
     case "draw": {
       const resolvedAmount = action.amountFromTarget
@@ -2361,6 +2363,49 @@ export function processEffectAction(
         state,
         controller,
         `${effectSourceName(state, sourceInstanceId)} swaps the base power of ${targetNames(state, targetIds)} ${durationLabel(action.duration)}.`,
+        {
+          sourceCardId: getInstance(state, sourceInstanceId).cardId,
+          sourceInstanceId,
+          targetIds,
+          visibility: "public",
+        },
+      );
+      return true;
+    }
+    case "setBasePower": {
+      const targetIds = resolveActionTargets(
+        state,
+        controller,
+        sourceInstanceId,
+        action,
+        selectedTargetIds,
+        previousActionTargetIds,
+      );
+      if (targetIds === "prompt" || !targetIds) {
+        return false;
+      }
+      for (const targetId of targetIds) {
+        // 4-9-2-1: base-power modifiers store an absolute value; competing
+        // set values resolve to the highest rather than the most recent.
+        addModifier(state, sourceInstanceId, targetId, {
+          type: "basePower",
+          value: action.value,
+          duration: action.duration,
+          expiresAtTurn:
+            action.duration === "thisTurn"
+              ? state.turnNumber
+              : action.duration === "untilEndOfOpponentNextTurn" ||
+                  action.duration === "untilEndOfOpponentNextEndPhase"
+                ? state.turnNumber + 1
+                : null,
+          expiresAtBattleId: action.duration === "thisBattle" ? (state.battle?.id ?? null) : null,
+          expiresOnTurnStartOfSeat: action.duration === "untilStartOfNextTurn" ? controller : null,
+        });
+      }
+      emitLog(
+        state,
+        controller,
+        `${effectSourceName(state, sourceInstanceId)} sets the base power of ${targetNames(state, targetIds)} to ${action.value} ${durationLabel(action.duration)}.`,
         {
           sourceCardId: getInstance(state, sourceInstanceId).cardId,
           sourceInstanceId,
