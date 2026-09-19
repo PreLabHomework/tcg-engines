@@ -4,3 +4,6 @@ export { op16Curiel004 } from "./004-curiel.ts";
 export { op16KouzukiMomonosuke084 } from "./084-kouzuki-momonosuke.ts";
 export { op16MonkeyDLuffy095 } from "./095-monkey-d-luffy.ts";
 export { op16KouzukiMomonosuke085 } from "./085-kouzuki-momonosuke.ts";
+export { op16Yamato096 } from "./096-yamato.ts";
+export { op16Yamato097 } from "./097-yamato.ts";
+export { op16Yamato098 } from "./098-yamato.ts";
