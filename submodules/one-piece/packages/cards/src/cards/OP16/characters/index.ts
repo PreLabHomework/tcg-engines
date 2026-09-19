@@ -7,3 +7,5 @@ export { op16KouzukiMomonosuke085 } from "./085-kouzuki-momonosuke.ts";
 export { op16Yamato096 } from "./096-yamato.ts";
 export { op16Yamato097 } from "./097-yamato.ts";
 export { op16Yamato098 } from "./098-yamato.ts";
+export { op16Kinemon082 } from "./082-kinemon.ts";
+export { op16Nami091 } from "./091-nami.ts";
