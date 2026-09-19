@@ -9,3 +9,6 @@ export { op16Yamato097 } from "./097-yamato.ts";
 export { op16Yamato098 } from "./098-yamato.ts";
 export { op16Kinemon082 } from "./082-kinemon.ts";
 export { op16Nami091 } from "./091-nami.ts";
+export { op16Shinobu087 } from "./087-shinobu.ts";
+export { op16NicoRobin092 } from "./092-nico-robin.ts";
+export { op16Otama081 } from "./081-otama.ts";
