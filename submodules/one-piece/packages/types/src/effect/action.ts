@@ -320,6 +320,18 @@ export interface GrantKeywordAction {
   keyword: Keyword;
   duration: Duration;
   previousActionTargets?: boolean;
+  /**
+   * Bind the target to the card that caused the trigger event, for printed
+   * text of the form "when ... is played, THAT Character gains [X]".
+   *
+   * This intentionally follows the existing action-specific trigger-binding
+   * pattern (see `returnToDeck.triggerEventTarget` and
+   * `copyPower.triggerEventAttacker`) rather than introducing a parallel
+   * mechanism. A generalized event-subject target, e.g.
+   * `target: { triggerEventCard: true }`, would retire all three flags and may
+   * be worth considering separately; it is deliberately out of scope here.
+   */
+  triggerEventTarget?: boolean;
   condition?: Condition;
 }
 
