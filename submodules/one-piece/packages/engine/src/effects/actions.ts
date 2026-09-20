@@ -4322,6 +4322,13 @@ export function processEffectAction(
       ) {
         return false;
       }
+      if (
+        action.selectionTotal &&
+        selectedTargetIds.reduce((sum, id) => sum + getCardCost(state, id), 0) >
+          action.selectionTotal.value
+      ) {
+        return false;
+      }
       if (selectedCards.filter((card) => card.cardType === "stage").length > 1) {
         recordCapabilityIssue(state, {
           kind: "unsupportedAction",

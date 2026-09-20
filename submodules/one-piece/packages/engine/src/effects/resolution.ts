@@ -15,6 +15,7 @@ import {
   isDonActivationByCharacterEffectPrevented,
   otherSeat,
   recordCapabilityIssue,
+  getCardCost,
 } from "../shared.ts";
 import {
   addDonFromDeck,
@@ -2816,6 +2817,17 @@ export function resolveEffectChoicePrompt(
           .size !== selectedIds.length
       ) {
         return false;
+      }
+      // Set-level budget: the chosen cards' combined value must fit.
+      const selectionTotal = context.action.selectionTotal;
+      if (selectionTotal) {
+        const total = selectedIds.reduce(
+          (sum, instanceId) => sum + getCardCost(state, instanceId),
+          0,
+        );
+        if (total > selectionTotal.value) {
+          return false;
+        }
       }
       enqueueResolution(
         state,

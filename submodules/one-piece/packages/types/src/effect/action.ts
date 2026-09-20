@@ -187,6 +187,26 @@ export interface TrashFromHandUntilAction {
   condition?: Condition;
 }
 
+/**
+ * Cap the summed value of the cards chosen by a single selection, for printed
+ * text of the form "play up to N cards with a total cost of X or less".
+ *
+ * Distinct from a TargetFilter, which decides per-card eligibility, and from
+ * the `zoneValueTotal` condition, which sums an entire zone as a gate before
+ * resolution. This constrains which COMBINATIONS of picks are legal during
+ * selection.
+ *
+ * Deliberately narrow: one property and one comparison, matching the single
+ * card that needs it. A future generalized `selectionConstraints` model could
+ * absorb this together with `differentNames` once a second, genuinely
+ * different set-level rule appears.
+ */
+export interface SelectionTotalConstraint {
+  property: "cost";
+  comparison: "lte";
+  value: number;
+}
+
 export interface PlayAction {
   action: "play";
   source: {
@@ -198,6 +218,8 @@ export interface PlayAction {
   filters?: TargetFilter[];
   differentColorFromPreviousCharacter?: boolean;
   differentNames?: boolean;
+  /** Set-level cap on the combined value of the chosen cards. */
+  selectionTotal?: SelectionTotalConstraint;
   sameNameAsPreviousCard?: boolean;
   playState?: "rested" | "active";
   topOnly?: boolean;

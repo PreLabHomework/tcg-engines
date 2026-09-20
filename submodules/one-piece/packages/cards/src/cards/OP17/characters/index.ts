@@ -6,3 +6,4 @@ export { op17Izo003 } from "./003-izo.ts";
 export { op17KouzukiOden007 } from "./007-kouzuki-oden.ts";
 export { op17Kingdew006 } from "./006-kingdew.ts";
 export { op17Haruta009 } from "./009-haruta.ts";
+export { op17RocksDXebec118 } from "./118-rocks-d-xebec.ts";
