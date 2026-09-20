@@ -12,3 +12,4 @@ export { op16Nami091 } from "./091-nami.ts";
 export { op16Shinobu087 } from "./087-shinobu.ts";
 export { op16NicoRobin092 } from "./092-nico-robin.ts";
 export { op16Otama081 } from "./081-otama.ts";
+export { op16ShimotsukiUshimaru088 } from "./088-shimotsuki-ushimaru.ts";

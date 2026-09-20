@@ -65,6 +65,7 @@ export * from "./OP14EB04/leaders/index.ts";
 export * from "./OP14EB04/characters/index.ts";
 export * from "./OP14EB04/events/index.ts";
 export * from "./OP14EB04/stages/index.ts";
+export * from "./OP16/events/index.ts";
 export * from "./OP16/leaders/index.ts";
 export * from "./OP16/characters/index.ts";
 export * from "./OP16/stages/index.ts";
