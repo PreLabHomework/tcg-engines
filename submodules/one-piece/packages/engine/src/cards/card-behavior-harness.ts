@@ -75,6 +75,7 @@ function printedTextMentionsTrigger(card: OPCard, trigger: EffectTrigger): boole
     whenCharacterRestedByEffect: /If a Character is rested by your effect/i,
     whenCardsTrashedFromHandByEffect: /trashed from your hand by .*card['’]s effect/i,
     whenYouTakeDamage: /when you take damage/i,
+    whenFriendlyCardAttacks: /When your (?:Leader|Character|.*?) (?:with[^,]*)?\s*attacks/i,
   };
 
   return triggerPatterns[trigger].test(text);

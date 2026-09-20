@@ -884,9 +884,20 @@ export function beginAttack(
     targetInstanceId: targetId,
   };
   enqueueEffectsForTrigger(state, attackerId, seat, "whenAttacking", undefined, attackEvent);
-  // "When your opponent attacks" can only live on the defending player's
-  // in-play cards, and the attacking (turn) player's [When Attacking] effects
-  // enqueue above, so 8-6-1 turn-player-first ordering already holds.
+  // Friendly cards that observe ANOTHER card attacking use their own trigger
+  // (for example OP17-040, which watches its own Leader attack). Fanning
+  // "whenAttacking" out here instead would make every ordinary [When
+  // Attacking] card fire on other cards' attacks. The attacker is excluded
+  // because its own effects were enqueued directly above.
+  enqueueInPlayEffectsForTrigger(
+    state,
+    "whenFriendlyCardAttacks",
+    attackEvent,
+    [seat],
+    [attackerId],
+  );
+  // The defending player's [When your opponent attacks] listeners enqueue after
+  // the turn player's effects, preserving 8-6-1 ordering.
   enqueueInPlayEffectsForTrigger(state, "onOpponentAttack", attackEvent, [otherSeat(seat)]);
   enqueueResolution(state, { kind: "battleBlockStep", battleId: state.battle.id });
 }

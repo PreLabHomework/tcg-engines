@@ -76,4 +76,14 @@ export type EffectTrigger =
   | "whenBecomesRested"
   | "whenCharacterRestedByEffect"
   | "whenCardsTrashedFromHandByEffect"
-  | "whenYouTakeDamage";
+  | "whenYouTakeDamage"
+  /**
+   * A friendly card other than this one declared an attack. Distinct from
+   * "whenAttacking", which fires only on the attacking card itself, so adding
+   * this trigger cannot change the meaning of any existing card. Mirrors how
+   * "onOpponentAttack" is its own trigger rather than a filtered variant of
+   * "whenAttacking". Use eventFilter.filters to restrict which attacker is
+   * observed: the attack event carries the attacker as event.instanceId
+   * (sourceFilters reads event.sourceInstanceId and will not match here).
+   */
+  | "whenFriendlyCardAttacks";

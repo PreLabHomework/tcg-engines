@@ -7,3 +7,5 @@ export { op17KouzukiOden007 } from "./007-kouzuki-oden.ts";
 export { op17Kingdew006 } from "./006-kingdew.ts";
 export { op17Haruta009 } from "./009-haruta.ts";
 export { op17RocksDXebec118 } from "./118-rocks-d-xebec.ts";
+export { op17CharlotteLinlin049 } from "./049-charlotte-linlin.ts";
+export { op17EdwardNewgate040 } from "./040-edward-newgate.ts";
