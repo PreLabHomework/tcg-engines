@@ -15,3 +15,4 @@ export { op17Kaido042 } from "./042-kaido.ts";
 export { op17Shiki048 } from "./048-shiki.ts";
 export { op17Gloriosa046 } from "./046-gloriosa.ts";
 export { op17MissBuckinghamStussy054 } from "./054-miss-buckingham-stussy.ts";
+export { op17CaptainJohn044 } from "./044-captain-john.ts";
