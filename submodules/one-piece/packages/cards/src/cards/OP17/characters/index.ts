@@ -12,3 +12,4 @@ export { op17EdwardNewgate040 } from "./040-edward-newgate.ts";
 export { op17WangZhi041 } from "./041-wang-zhi.ts";
 export { op17Kyo045 } from "./045-kyo.ts";
 export { op17Kaido042 } from "./042-kaido.ts";
+export { op17Shiki048 } from "./048-shiki.ts";
