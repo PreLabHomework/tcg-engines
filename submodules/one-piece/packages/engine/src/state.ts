@@ -777,7 +777,10 @@ function resetStartOfTurnState(state: MatchState, seat: MatchSeat) {
       if (!isCardPreventedFromRefreshing(state, instance.instanceId)) {
         instance.rested = false;
       }
-      instance.usedEffectKeys = [];
+      // [Once Per Turn] usage is reset in beginTurn, not here: Refresh is not
+      // what ends a once-per-turn window. Clearing it here as well would also
+      // let an OPT start-of-turn effect that resolved before this finalizer run
+      // be used a second time in the same turn.
       if (instance.attachedDon > 0) {
         returningDon += instance.attachedDon;
         instance.attachedDon = 0;
@@ -799,6 +802,15 @@ function resetStartOfTurnState(state: MatchState, seat: MatchSeat) {
 
 export function beginTurn(state: MatchState, seat: MatchSeat, skipDraw: boolean) {
   state.activeSeat = seat;
+  // 10-2-13-1: [Once Per Turn] means once "during that turn", and a turn is a
+  // game turn, not a controller's turn. Usage therefore expires because a new
+  // turn began, for BOTH players' cards. It is cleared here, before any
+  // start-of-turn effects are enqueued, rather than in the Refresh Phase,
+  // which only touches the turn player's cards and so left an ability used on
+  // your own turn locked through the opponent's following turn.
+  for (const instance of Object.values(state.cards)) {
+    instance.usedEffectKeys = [];
+  }
   // 6-5-6-1: count each seat's first turn independently (extra turns do not
   // reassign the opponent's first-turn battle ban to a different game turn).
   // Normalize missing field for snapshots serialized before turnsStarted existed
