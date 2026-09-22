@@ -82,9 +82,18 @@ export const MAX_COMMANDS = 5000;
 export const expandDeck = (id: DeckId): string[] =>
   DECKS[id].main.flatMap(([cardId, count]) => Array.from({ length: count }, () => cardId));
 
-/** A match config for an ordered pairing. Callers pass an explicit seed. */
-export const matchConfig = (south: DeckId, north: DeckId, seed: string): MatchConfig => ({
-  firstPlayer: "south" satisfies MatchSeat,
+/**
+ * A match config for an ordered pairing. Callers pass an explicit seed, and
+ * may pass which seat goes first. Defaults to south so existing Phase 0A/0B
+ * fixtures keep their exact seeds and outcomes.
+ */
+export const matchConfig = (
+  south: DeckId,
+  north: DeckId,
+  seed: string,
+  firstPlayer: MatchSeat = "south",
+): MatchConfig => ({
+  firstPlayer,
   seed,
   shuffleDecks: true,
   openingHandSize: 5,
