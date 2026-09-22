@@ -4,7 +4,7 @@ import type { EngineCommand } from "../../src/types.ts";
 import { replayMatch } from "../../src/core.ts";
 import { runBotMatch } from "../../src/automation/bot-harness.ts";
 import { heuristicAgent } from "../../src/automation/heuristic-strategy.ts";
-import { DECKS, MAX_COMMANDS, matchConfig, type DeckId } from "./deck-fixtures.ts";
+import { MAX_COMMANDS, matchConfig, type DeckId } from "./deck-fixtures.ts";
 import "@tcg/op-cards";
 
 /**
