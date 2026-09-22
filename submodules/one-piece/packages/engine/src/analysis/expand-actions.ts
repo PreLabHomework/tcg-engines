@@ -148,7 +148,13 @@ const expandPrompt = (
   seat: MatchSeat,
   maxActions: number,
 ): EngineCommand[] => {
-  const optionIds = prompt.options.map((option) => option.id);
+  // `enabled: false` marks an option the engine will refuse (a counter-step
+  // card with no Counter value, for instance). Offering one would break both
+  // SOUNDness and the promise that every expanded action is applicable.
+  // Undefined means enabled.
+  const optionIds = prompt.options
+    .filter((option) => option.enabled !== false)
+    .map((option) => option.id);
   const kind = prompt.choiceKind;
   const refuse = (requiredBranches: bigint) => {
     throw new ExpansionTooLargeError({
