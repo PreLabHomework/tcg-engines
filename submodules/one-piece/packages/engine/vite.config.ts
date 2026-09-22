@@ -10,6 +10,7 @@ export default defineConfig({
       "tests/cards/**/*.test.ts",
       // Comprehensive Rules as executable unit specs (docs/rules-test-coverage.md).
       "tests/rules/**/*.test.ts",
+      "tests/integration/**/*.test.ts",
       // Command-driven campaign proofs. validateCardAbility-only files use test.skip.
       "src/cards/**/*.test.ts",
       "src/automation/**/*.test.ts",
