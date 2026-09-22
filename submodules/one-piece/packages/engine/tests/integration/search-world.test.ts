@@ -1,60 +1,52 @@
 import { describe, expect, test } from "vite-plus/test";
+import type { EngineCommand } from "../../src/types.ts";
 
-import { createMatch } from "../../src/core.ts";
-import { getLegalCommands } from "../../src/engine/legal.ts";
+import { applyCommand, createMatch } from "../../src/core.ts";
 import { createSearchWorld } from "../../src/analysis/search-world.ts";
+import { expandLegalActions } from "../../src/analysis/expand-actions.ts";
 import { runBotMatch } from "../../src/automation/bot-harness.ts";
 import { heuristicAgent } from "../../src/automation/heuristic-strategy.ts";
-import type { EngineCommand, LegalCommandDescriptor } from "../../src/types.ts";
 import { MAX_COMMANDS, matchConfig } from "./deck-fixtures.ts";
 import "@tcg/op-cards";
 
 /**
  * Phase 1A: the perfect-information analysis facade.
  *
- * These tests pin the properties a searcher depends on. They deliberately do
- * NOT test rules: the facade contains no game logic, so any rules assertion
- * here would really be testing the engine twice.
+ * Pins the properties a searcher depends on. Deliberately NOT rules tests:
+ * the facade contains no game logic.
  */
 const SEED = "phase1a-search-world";
-
-/**
- * Local, faithful descriptor -> command conversion for the cases these tests
- * need. Deliberately local: the engine's commandFromDescriptor is a bot policy
- * helper that would collapse the three chooseJoKenPo descriptors into one, and
- * the facade correctly declines to expose it.
- */
-const toCommand = (descriptor: LegalCommandDescriptor): EngineCommand | null => {
-  if (descriptor.type === "chooseJoKenPo") {
-    const choice = descriptor.options?.[0]?.value;
-    if (choice !== "rock" && choice !== "paper" && choice !== "scissors") return null;
-    return { type: "chooseJoKenPo", seat: descriptor.seat as "south" | "north", choice };
-  }
-  return null;
-};
-
-const firstJoKenPo = (descriptors: LegalCommandDescriptor[]) =>
-  descriptors.find((descriptor) => descriptor.type === "chooseJoKenPo")!;
 const freshWorld = () =>
   createSearchWorld(createMatch(matchConfig("newgate", "xebec", SEED)), "south");
 
+const joKenPo = (actions: readonly EngineCommand[]) =>
+  actions.filter((action) => action.type === "chooseJoKenPo");
+
 describe("SearchWorld facade", () => {
-  test("legalActions delegates to the engine rather than reimplementing it", () => {
+  test("legalActions exposes concrete commands, not descriptors", () => {
     const world = freshWorld();
-    expect(world.legalActions()).toEqual(getLegalCommands(world.state, world.state.activeSeat));
-    // A seat may be named explicitly, judge included.
-    expect(world.legalActions("judge")).toEqual(getLegalCommands(world.state, "judge"));
+    const actions = world.legalActions();
+
+    expect(actions.length).toBeGreaterThan(0);
+    // Every action is directly applicable: no `options`/`slotChoices` summary
+    // fields, and every one is accepted by the engine.
+    for (const action of actions) {
+      expect(action).not.toHaveProperty("options");
+      expect(action).not.toHaveProperty("slotChoices");
+      expect(applyCommand(world.state, action).accepted).toBe(true);
+    }
+    expect(actions).toEqual(expandLegalActions(world.state, world.state.activeSeat));
   });
 
   test("apply returns a NEW world and leaves the receiver untouched", () => {
     const world = freshWorld();
     const before = world.diagnosticFingerprint();
-    const command = toCommand(firstJoKenPo(world.legalActions()))!;
-    expect(command).not.toBeNull();
+    const action = joKenPo(world.legalActions())[0]!;
 
-    const step = world.apply(command);
+    const step = world.apply(action);
 
     // The branching guarantee: search may advance without cloning.
+    expect(step.accepted).toBe(true);
     expect(world.diagnosticFingerprint()).toBe(before);
     expect(step.world).not.toBe(world);
     expect(step.world.state).not.toBe(world.state);
@@ -63,17 +55,24 @@ describe("SearchWorld facade", () => {
 
   test("branching twice from one world yields independent successors", () => {
     const world = freshWorld();
-    const actions = world.legalActions();
-    expect(actions.length).toBeGreaterThan(0);
+    const action = joKenPo(world.legalActions())[0]!;
 
-    const command = toCommand(firstJoKenPo(actions))!;
-    const a = world.apply(command);
-    const b = world.apply(command);
+    const a = world.apply(action);
+    const b = world.apply(action);
 
-    // Same input, same result, and neither disturbed the parent.
     expect(a.accepted).toBe(b.accepted);
     expect(a.world.diagnosticFingerprint()).toBe(b.world.diagnosticFingerprint());
     expect(a.world).not.toBe(b.world);
+  });
+
+  test("distinct actions lead to distinct successor positions", () => {
+    const world = freshWorld();
+    const choices = joKenPo(world.legalActions());
+    expect(choices).toHaveLength(3);
+
+    const fingerprints = choices.map((action) => world.apply(action).world.diagnosticFingerprint());
+    // If expansion had collapsed the three choices, these would coincide.
+    expect(new Set(fingerprints).size).toBe(3);
   });
 
   test("a rejected command is reported, not thrown, and still yields a world", () => {
@@ -99,45 +98,21 @@ describe("SearchWorld facade", () => {
 
     expect(terminal.isTerminal()).toBe(true);
     expect(terminal.winner()).toBe(finished.winner);
-    // Nothing further to search from a terminal position.
     expect(terminal.legalActions()).toEqual([]);
   });
 
   test("diagnosticFingerprint is stable per position and changes on advance", () => {
     const world = freshWorld();
     expect(world.diagnosticFingerprint()).toBe(world.diagnosticFingerprint());
-    // A second world built from the same config is the same position.
     expect(freshWorld().diagnosticFingerprint()).toBe(world.diagnosticFingerprint());
 
-    const step = world.apply(toCommand(firstJoKenPo(world.legalActions()))!);
+    const step = world.apply(joKenPo(world.legalActions())[0]!);
     expect(step.accepted).toBe(true);
     expect(step.world.diagnosticFingerprint()).not.toBe(world.diagnosticFingerprint());
   });
 
-  test("enumeration is 1:1 with actions and carries choices structurally", () => {
-    const world = freshWorld();
-    const joKenPo = world
-      .legalActions()
-      .filter((descriptor) => descriptor.type === "chooseJoKenPo");
-
-    // Three distinct actions, three descriptors: the branching factor is real.
-    expect(joKenPo).toHaveLength(3);
-    // The choice is in `options`, not only in the human-readable label, so a
-    // faithful converter needs no string parsing.
-    expect(
-      joKenPo
-        .map((descriptor) => String(descriptor.options?.[0]?.value))
-        .sort((a, b) => a.localeCompare(b)),
-    ).toEqual(["paper", "rock", "scissors"]);
-
-    // Each converts to a genuinely different command.
-    const commands = joKenPo.map((descriptor) => toCommand(descriptor));
-    expect(new Set(commands.map((command) => JSON.stringify(command))).size).toBe(3);
-  });
-
   test("the fingerprint ignores path-dependent history", () => {
-    const world = freshWorld();
-    const printed = world.diagnosticFingerprint();
+    const printed = freshWorld().diagnosticFingerprint();
     for (const key of ["commandHistory", "logHistory", "eventHistory", "eventSequence"]) {
       expect(printed).not.toContain(`"${key}"`);
     }

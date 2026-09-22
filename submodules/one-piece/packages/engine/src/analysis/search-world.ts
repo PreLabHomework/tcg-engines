@@ -1,6 +1,6 @@
-import type { EngineCommand, LegalCommandDescriptor, MatchSeat, MatchState } from "../types.ts";
+import type { EngineCommand, MatchSeat, MatchState } from "../types.ts";
 import { applyCommand } from "../core.ts";
-import { getLegalCommands } from "../engine/legal.ts";
+import { type ExpandOptions, expandLegalActions } from "./expand-actions.ts";
 
 /**
  * Perfect-information search primitive.
@@ -22,16 +22,12 @@ import { getLegalCommands } from "../engine/legal.ts";
  * Nothing here implements rules. Every method adapts something the engine
  * already provides, so this file must stay free of game logic.
  *
- * Deliberately NOT provided: a descriptor -> EngineCommand converter.
- * Enumeration itself is sound (getLegalCommands emits one descriptor per
- * action, e.g. three separate chooseJoKenPo descriptors carrying their choice
- * in `options`). The engine's existing commandFromDescriptor is a BOT POLICY
- * helper, not a faithful converter: it ignores which descriptor it was given
- * for chooseJoKenPo and always picks by its own rule, and returns null for
- * concede because bots never concede. Wiring that into an analysis facade
- * would silently collapse three distinct actions into one and shrink the
- * branching factor. A faithful converter is a small, well-defined piece of
- * work, and it belongs next to search rather than hidden in this adapter.
+ * Action expansion lives in expand-actions.ts, which turns the engine's
+ * descriptor summary into concrete commands. Deliberately NOT used: the
+ * engine's commandFromDescriptor is a BOT POLICY helper, not a faithful
+ * converter. It ignores which chooseJoKenPo descriptor it was handed and
+ * always picks by its own rule, and returns null for concede because bots
+ * never concede. Wiring it in would silently shrink the branching factor.
  *
  * Note on honesty: holding a SearchWorld means holding perfect information.
  * That is correct for an internal search kernel and for explicitly-labelled
@@ -44,8 +40,19 @@ export interface SearchWorld {
   /** The seat this world is being searched on behalf of. */
   readonly perspective: MatchSeat;
 
-  /** Legal commands for a seat, prompt resolutions included. */
-  legalActions(seat?: MatchSeat | "judge"): LegalCommandDescriptor[];
+  /**
+   * The branching surface: every concrete legal action for a seat, prompt
+   * resolutions included and fully expanded.
+   *
+   * Descriptors are a UI abstraction and deliberately do not leak here. A
+   * searcher must never see that "Attack with X" originally summarised three
+   * target choices.
+   *
+   * Throws rather than truncating if expansion exceeds the budget; see
+   * ExpansionTooLargeError. Callers must treat that as INDETERMINATE, never as
+   * "no actions available".
+   */
+  legalActions(seat?: MatchSeat, options?: ExpandOptions): readonly EngineCommand[];
   /**
    * Advance the world. Returns a NEW world; the receiver is untouched, so a
    * searcher may branch freely without cloning.
@@ -89,8 +96,8 @@ export function createSearchWorld(state: MatchState, perspective: MatchSeat): Se
   return {
     state,
     perspective,
-    legalActions(seat = state.activeSeat) {
-      return getLegalCommands(state, seat);
+    legalActions(seat = state.activeSeat, options = {}) {
+      return expandLegalActions(state, seat, options);
     },
     apply(command) {
       // applyCommand is immutable (produceWithPatches), so `state` above is
