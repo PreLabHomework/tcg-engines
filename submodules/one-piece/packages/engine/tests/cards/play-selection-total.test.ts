@@ -32,6 +32,8 @@ const B = mk("B", "Sel B", 5, "Rocks Pirates");
 const C = mk("C", "Sel C", 6, "Rocks Pirates");
 const D = mk("D", "Sel D", 9, "Rocks Pirates");
 const A2 = mk("A2", "Sel A", 4, "Rocks Pirates"); // same NAME as A
+/** Individually over budget: can belong to no legal selection at all. */
+const Ten = mk("TEN", "Sel Ten", 10, "Rocks Pirates");
 const X = mk("X", "Sel X", 1, "Straw Hat Crew"); // wrong trait
 
 const source: CharacterCard = {
@@ -58,7 +60,7 @@ const source: CharacterCard = {
     ],
   },
 };
-registerCards([A, B, C, D, A2, X, source]);
+registerCards([A, B, C, D, A2, X, Ten, source]);
 
 describe("PlayAction.selectionTotal", () => {
   const setup = () => {
@@ -72,6 +74,7 @@ describe("PlayAction.selectionTotal", () => {
           { card: C },
           { card: D },
           { card: X },
+          { card: Ten },
         ],
         activeDon: 10,
         life: 3,
@@ -92,8 +95,26 @@ describe("PlayAction.selectionTotal", () => {
   test("the wrong-trait card is excluded from candidates entirely", () => {
     const { step, byName } = setup();
     expect(byName(X.id)).toBeUndefined();
-    // A, A2, B, C, D only.
+    // A, A2, B, C, D only. Ten is trait-eligible but individually over the
+    // budget, so it must not be offered either.
+    expect(byName(Ten.id)).toBeUndefined();
     expect(step.candidates).toHaveLength(5);
+  });
+
+  test("prompt legality: an individually over-budget candidate is not offered", () => {
+    const { engine, step, byName } = setup();
+    const ids = step.candidates.map((candidate) => candidate.ref.id);
+
+    // Every option a prompt presents must be selectable in at least one legal
+    // resolution. "Up to 2, total <= 9" makes a single pick legal, so a card
+    // whose own cost exceeds 9 belongs to no legal selection and offering it
+    // would violate that contract.
+    expect(byName(Ten.id)).toBeUndefined();
+    for (const card of [A, B, C, D]) {
+      expect(ids).toContain(byName(card.id)!);
+    }
+    engine.resolveDecision("effectPlaySelection", { selectedIds: [] }, "south");
+    expect(engine.getView("south").prompts).toHaveLength(0);
   });
 
   test("A + A2 is rejected: same card name, even though the total is only 8", () => {

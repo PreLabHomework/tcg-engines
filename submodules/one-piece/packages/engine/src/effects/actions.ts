@@ -841,7 +841,21 @@ export function candidatesForPlayAction(
       ) &&
       (!action.differentColorFromPreviousCharacter ||
         (previousColors.size > 0 && card.color.every((color) => !previousColors.has(color)))) &&
-      (!action.sameNameAsPreviousCard || cardNames(card).some((name) => previousNames.has(name)))
+      (!action.sameNameAsPreviousCard || cardNames(card).some((name) => previousNames.has(name))) &&
+      // Prompt-legality contract: every option a prompt presents must be
+      // selectable in at least one legal resolution. `selectionTotal` caps the
+      // combined cost of the chosen set, so a card whose own effective cost
+      // already exceeds the budget belongs to no legal selection and must not
+      // be offered, even though submission validation would also reject it.
+      //
+      // Deliberately minimal. It is sound only because these selections are
+      // "up to N", which makes a single pick legal, so any candidate within
+      // budget is satisfiable by itself. An "exactly N" selection would need
+      // real combination reasoning; no card requires that today.
+      (action.selectionTotal === undefined ||
+        action.selectionTotal.property !== "cost" ||
+        action.selectionTotal.comparison !== "lte" ||
+        getCardCost(state, instanceId) <= action.selectionTotal.value)
     );
   });
 }
