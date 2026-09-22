@@ -1,6 +1,35 @@
 import type { EngineCommand, MatchSeat, MatchState } from "../types.ts";
 import { applyCommand } from "../core.ts";
+import { getLegalCommands } from "../engine/legal.ts";
 import { type ExpandOptions, expandLegalActions } from "./expand-actions.ts";
+
+/**
+ * Which seat owns the NEXT decision.
+ *
+ * Quantification in search follows the decision-maker, not the turn. Cards
+ * like OP17-049 Charlotte Linlin hand a choice to the opponent during your
+ * own turn, so a solver that equated "our turn" with "existential node" would
+ * treat an opponent's choice as if we controlled it.
+ *
+ * This mirrors the bot harness exactly rather than inventing a rule: a pending
+ * non-judge prompt is answered first, by the prompt's own seat, in queue
+ * order; during setup the seat holding legal commands acts; otherwise the
+ * active seat acts.
+ */
+export function seatToAct(state: MatchState): MatchSeat {
+  const pending = state.promptQueue.find(
+    (prompt) => prompt.status === "pending" && prompt.seat !== "judge",
+  );
+  if (pending) return pending.seat as MatchSeat;
+
+  if (state.status === "setup") {
+    const setupActor = [...getLegalCommands(state, "south"), ...getLegalCommands(state, "north")]
+      .map((descriptor) => descriptor.seat)
+      .find((seat): seat is MatchSeat => seat === "south" || seat === "north");
+    if (setupActor) return setupActor;
+  }
+  return state.activeSeat;
+}
 
 /**
  * Perfect-information search primitive.
@@ -39,6 +68,13 @@ export interface SearchWorld {
   readonly state: MatchState;
   /** The seat this world is being searched on behalf of. */
   readonly perspective: MatchSeat;
+
+  /**
+   * The seat that owns the next decision, which is NOT always the active
+   * seat: a pending prompt may belong to the opponent during your own turn.
+   * Search quantification must follow this, not the turn.
+   */
+  seatToAct(): MatchSeat;
 
   /**
    * The branching surface: every concrete legal action for a seat, prompt
@@ -96,7 +132,10 @@ export function createSearchWorld(state: MatchState, perspective: MatchSeat): Se
   return {
     state,
     perspective,
-    legalActions(seat = state.activeSeat, options = {}) {
+    seatToAct() {
+      return seatToAct(state);
+    },
+    legalActions(seat = seatToAct(state), options = {}) {
       return expandLegalActions(state, seat, options);
     },
     apply(command) {
