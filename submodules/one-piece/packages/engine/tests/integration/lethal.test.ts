@@ -113,6 +113,17 @@ describe("bounded lethal solver", () => {
 
     expect(result.status).toBe("forced-win");
     assertLineIsLegalAndWins(world, result, "south");
+    if (result.status !== "forced-win") return;
+
+    // The line is a principal variation against BEST defence. Declining the
+    // block loses immediately, so the stubborn reply is to block, and that is
+    // what the line must show. The pre-fix solver reported the first-visited
+    // reply (no block) and a mate distance of 2.
+    expect(result.plies).toBe(3);
+    const reply = result.line[1] as { type: string; seat: string; selectedIds?: string[] };
+    expect(reply.type).toBe("resolvePrompt");
+    expect(reply.seat).toBe("north");
+    expect(reply.selectedIds?.length).toBe(1);
   });
 
   test("fixture 4: depth sensitivity, no win shallow, win deeper", () => {

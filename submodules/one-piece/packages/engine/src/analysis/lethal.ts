@@ -74,8 +74,29 @@ type Verdict =
   | { kind: "no-win" }
   | { kind: "indeterminate"; reason: "expansion-too-large" | "node-budget" };
 
-class NodeBudgetExceeded extends Error {}
-
+/**
+ * Mate-distance semantics. The returned line is a principal variation against
+ * BEST DEFENCE, so `plies` is the true minimax mate distance:
+ *
+ *   perspective (existential) node   the SHORTEST forced win among children
+ *   opponent (universal) node        every child must be a forced win, and the
+ *                                    representative is the LONGEST of them,
+ *                                    i.e. the most stubborn defence
+ *
+ * Three-valued combination, applied per node so a proven result is never lost
+ * to an unresolved sibling:
+ *
+ *   OUR NODE        any forced-win -> forced-win
+ *                   all no-win     -> no-win
+ *                   otherwise      -> indeterminate
+ *   OPPONENT NODE   any no-win     -> no-win   (one escape suffices)
+ *                   all forced-win -> forced-win
+ *                   otherwise      -> indeterminate
+ *
+ * The node budget is therefore enforced per node, returning `indeterminate`
+ * for that node rather than aborting the whole search, so a win already
+ * established elsewhere survives running out of budget later.
+ */
 export function findLethal(world: SearchWorld, options: LethalOptions): LethalResult {
   const perspective = options.perspective ?? world.perspective;
   const nodeBudget = options.nodeBudget ?? DEFAULT_NODE_BUDGET;
@@ -90,16 +111,24 @@ export function findLethal(world: SearchWorld, options: LethalOptions): LethalRe
 
   let searchedNodes = 0;
 
-  const search = (node: SearchWorld, depth: number): Verdict => {
+  /**
+   * `limit` is the absolute depth by which a terminal win must be reached.
+   * Terminal positions are recognised even at depth === limit; only expansion
+   * stops there. Existential nodes tighten it for later siblings once a win is
+   * known, so they only search for strictly faster mates. That is exact
+   * mate-distance pruning, not heuristic pruning: a longer win elsewhere could
+   * never replace a shorter one we already hold.
+   */
+  const search = (node: SearchWorld, depth: number, limit: number): Verdict => {
     searchedNodes++;
-    if (searchedNodes > nodeBudget) throw new NodeBudgetExceeded();
+    if (searchedNodes > nodeBudget) return { kind: "indeterminate", reason: "node-budget" };
 
     if (node.isTerminal()) {
       return node.winner() === perspective ? { kind: "win", line: [] } : { kind: "no-win" };
     }
     // Depth exhausted without a terminal win is a legitimate negative for this
     // branch, not an indeterminate result: the question was bounded.
-    if (depth >= options.maxPlies) return { kind: "no-win" };
+    if (depth >= limit) return { kind: "no-win" };
 
     const mover = node.seatToAct();
     let actions: readonly EngineCommand[];
@@ -114,18 +143,9 @@ export function findLethal(world: SearchWorld, options: LethalOptions): LethalRe
     // Policy layer, not the action layer: legalActions() stays faithful to the
     // engine and keeps meaning "all concrete legal commands".
     const candidates = actions.filter((action) => action.type !== "concede");
-
-    // A seat with no play available cannot be forced to win or lose here.
     if (candidates.length === 0) return { kind: "no-win" };
 
-    const existential = mover === perspective;
-    let sawIndeterminate: "expansion-too-large" | "node-budget" | null = null;
-    // At a universal node every reply loses, so no single line represents the
-    // node. We keep the FIRST reply's line as a concrete, replayable
-    // representative; `line` is a principal variation, not the whole tree.
-    let representative: EngineCommand[] | null = null;
-
-    for (const action of candidates) {
+    const advance = (action: EngineCommand) => {
       const step = node.apply(action);
       // Expansion is complete, so a rejected command means the generator and
       // the engine disagree. Surface it rather than silently skipping.
@@ -134,50 +154,67 @@ export function findLethal(world: SearchWorld, options: LethalOptions): LethalRe
           `Expanded action was rejected by the engine: ${JSON.stringify(action)} (${step.reason}).`,
         );
       }
-      const verdict = search(step.world, depth + 1);
+      return step.world;
+    };
 
-      if (existential) {
-        if (verdict.kind === "win") return { kind: "win", line: [action, ...verdict.line] };
-        if (verdict.kind === "indeterminate") sawIndeterminate ??= verdict.reason;
-      } else {
-        // Universal: a single surviving reply refutes the forced win outright.
-        if (verdict.kind === "no-win") return { kind: "no-win" };
-        if (verdict.kind === "indeterminate") sawIndeterminate ??= verdict.reason;
-        if (verdict.kind === "win") representative ??= [action, ...verdict.line];
+    let sawIndeterminate: "expansion-too-large" | "node-budget" | null = null;
+
+    if (mover === perspective) {
+      let best: EngineCommand[] | null = null;
+      let currentLimit = limit;
+      for (const action of candidates) {
+        // Check the budget BEFORE advancing. Applying a child is the expensive
+        // step, so an exhausted budget must stop the loop rather than apply
+        // every remaining sibling only to have each return immediately.
+        if (searchedNodes >= nodeBudget) {
+          sawIndeterminate ??= "node-budget";
+          break;
+        }
+        const verdict = search(advance(action), depth + 1, currentLimit);
+        if (verdict.kind === "win") {
+          const line = [action, ...verdict.line];
+          if (best === null || line.length < best.length) {
+            best = line;
+            currentLimit = depth + line.length - 1;
+          }
+          // Nothing beats an immediate win.
+          if (best.length === 1) break;
+        } else if (verdict.kind === "indeterminate") {
+          sawIndeterminate ??= verdict.reason;
+        }
       }
-    }
-
-    if (existential) {
-      // No winning action found. If any branch was unresolved, we cannot claim
-      // a complete search of this node.
+      if (best !== null) return { kind: "win", line: best };
       return sawIndeterminate
         ? { kind: "indeterminate", reason: sawIndeterminate }
         : { kind: "no-win" };
     }
-    // Universal with no refutation: a win only if every reply was resolved.
-    return sawIndeterminate
-      ? { kind: "indeterminate", reason: sawIndeterminate }
-      : { kind: "win", line: representative ?? [] };
+
+    let worst: EngineCommand[] | null = null;
+    for (const action of candidates) {
+      if (searchedNodes >= nodeBudget) {
+        sawIndeterminate ??= "node-budget";
+        break;
+      }
+      const verdict = search(advance(action), depth + 1, limit);
+      // One surviving reply refutes the forced win outright.
+      if (verdict.kind === "no-win") return { kind: "no-win" };
+      if (verdict.kind === "indeterminate") {
+        sawIndeterminate ??= verdict.reason;
+      } else {
+        const line = [action, ...verdict.line];
+        if (worst === null || line.length > worst.length) worst = line;
+      }
+    }
+    if (sawIndeterminate) return { kind: "indeterminate", reason: sawIndeterminate };
+    return { kind: "win", line: worst ?? [] };
   };
 
-  try {
-    const verdict = search(world, 0);
-    if (verdict.kind === "win") {
-      return {
-        status: "forced-win",
-        line: verdict.line,
-        plies: verdict.line.length,
-        searchedNodes,
-      };
-    }
-    if (verdict.kind === "indeterminate") {
-      return { status: "indeterminate", reason: verdict.reason, searchedNodes };
-    }
-    return { status: "no-forced-win", depthLimit: options.maxPlies, searchedNodes };
-  } catch (error) {
-    if (error instanceof NodeBudgetExceeded) {
-      return { status: "indeterminate", reason: "node-budget", searchedNodes };
-    }
-    throw error;
+  const verdict = search(world, 0, options.maxPlies);
+  if (verdict.kind === "win") {
+    return { status: "forced-win", line: verdict.line, plies: verdict.line.length, searchedNodes };
   }
+  if (verdict.kind === "indeterminate") {
+    return { status: "indeterminate", reason: verdict.reason, searchedNodes };
+  }
+  return { status: "no-forced-win", depthLimit: options.maxPlies, searchedNodes };
 }
