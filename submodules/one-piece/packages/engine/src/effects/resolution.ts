@@ -25,7 +25,14 @@ import {
   getOpenCharacterSlots,
   moveCard,
 } from "../state.ts";
-import type { GameCommand, MatchSeat, MatchState, PromptState, ResolutionItem } from "../types.ts";
+import type {
+  GameCommand,
+  MatchSeat,
+  MatchState,
+  PromptResolutionContext,
+  PromptState,
+  ResolutionItem,
+} from "../types.ts";
 import { completeBattleResolution } from "../battle.ts";
 import {
   addTopDeckCardsToLife,
@@ -2784,50 +2791,10 @@ export function resolveEffectChoicePrompt(
     case "effectPlaySelection": {
       const context = prompt.resolutionContext;
       const selectedIds = command.selectedIds ?? [];
-      const liveCandidateIds = candidatesForPlayAction(
-        state,
-        context.controller,
-        context.sourceInstanceId,
-        context.action,
-        context.previousActionTargetIds,
-      );
-      if (!liveCandidateIds) {
+      // Legality is authored once, in isValidPlaySelection, and consumed both
+      // here before mutation and by search-side action expansion.
+      if (!isValidPlaySelection(state, context, selectedIds)) {
         return false;
-      }
-      const requested =
-        context.action.count.amount === "all"
-          ? liveCandidateIds.length
-          : context.action.count.amount;
-      const maximum = Math.min(requested, liveCandidateIds.length);
-      const minimum = context.action.count.upTo ? 0 : maximum;
-      if (
-        selectedIds.length < minimum ||
-        selectedIds.length > maximum ||
-        new Set(selectedIds).size !== selectedIds.length ||
-        selectedIds.some(
-          (instanceId) =>
-            !context.candidateIds.includes(instanceId) || !liveCandidateIds.includes(instanceId),
-        )
-      ) {
-        return false;
-      }
-      if (
-        context.action.differentNames &&
-        new Set(selectedIds.map((instanceId) => getCardForInstance(state, instanceId).name))
-          .size !== selectedIds.length
-      ) {
-        return false;
-      }
-      // Set-level budget: the chosen cards' combined value must fit.
-      const selectionTotal = context.action.selectionTotal;
-      if (selectionTotal) {
-        const total = selectedIds.reduce(
-          (sum, instanceId) => sum + getCardCost(state, instanceId),
-          0,
-        );
-        if (total > selectionTotal.value) {
-          return false;
-        }
       }
       enqueueResolution(
         state,
@@ -4109,4 +4076,75 @@ export function resolveEffectChoicePrompt(
     default:
       return false;
   }
+}
+
+export type PlaySelectionContext = Extract<
+  PromptResolutionContext,
+  { intent: "effectPlaySelection" }
+>;
+
+/**
+ * Authoritative legality for an effectPlaySelection resolution: cardinality,
+ * candidate membership, and the SET-LEVEL constraints differentNames and
+ * selectionTotal.
+ *
+ * Extracted so legality is authored once, before mutation, and consumed by
+ * both engine execution and action enumeration. Search-side expansion cannot
+ * see set-level constraints in the prompt descriptor alone: OP17-118's "up to
+ * 2, total cost 9 or less" offers each in-budget card individually (correct,
+ * since a single pick is legal) but a pair may still exceed the budget.
+ *
+ * Scope is deliberately narrow. An expansion-soundness audit over 18 real
+ * transcripts (1,984 states, 17,448 applied actions) found this to be the
+ * ONLY intent whose legality is invisible to its descriptor, so no generic
+ * prompt-validation predicate is introduced.
+ *
+ * Pure: reads state, mutates nothing.
+ */
+export function isValidPlaySelection(
+  state: MatchState,
+  context: PlaySelectionContext,
+  selectedIds: readonly string[],
+): boolean {
+  const liveCandidateIds = candidatesForPlayAction(
+    state,
+    context.controller,
+    context.sourceInstanceId,
+    context.action,
+    context.previousActionTargetIds,
+  );
+  if (!liveCandidateIds) {
+    return false;
+  }
+  const requested =
+    context.action.count.amount === "all" ? liveCandidateIds.length : context.action.count.amount;
+  const maximum = Math.min(requested, liveCandidateIds.length);
+  const minimum = context.action.count.upTo ? 0 : maximum;
+  if (
+    selectedIds.length < minimum ||
+    selectedIds.length > maximum ||
+    new Set(selectedIds).size !== selectedIds.length ||
+    selectedIds.some(
+      (instanceId) =>
+        !context.candidateIds.includes(instanceId) || !liveCandidateIds.includes(instanceId),
+    )
+  ) {
+    return false;
+  }
+  if (
+    context.action.differentNames &&
+    new Set(selectedIds.map((instanceId) => getCardForInstance(state, instanceId).name)).size !==
+      selectedIds.length
+  ) {
+    return false;
+  }
+  // Set-level budget: the chosen cards' combined value must fit.
+  const selectionTotal = context.action.selectionTotal;
+  if (selectionTotal) {
+    const total = selectedIds.reduce((sum, instanceId) => sum + getCardCost(state, instanceId), 0);
+    if (total > selectionTotal.value) {
+      return false;
+    }
+  }
+  return true;
 }

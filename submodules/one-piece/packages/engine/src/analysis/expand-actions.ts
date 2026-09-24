@@ -8,6 +8,7 @@ import type {
   PromptState,
 } from "../types.ts";
 import { getLegalCommands } from "../engine/legal.ts";
+import { isValidPlaySelection } from "../effects/resolution.ts";
 
 /**
  * Action expansion: turn the engine's legal-command SUMMARY into the concrete
@@ -144,6 +145,7 @@ const ORDER_SENSITIVE: ReadonlySet<ChoiceKind> = new Set<ChoiceKind>(["orderCard
 const SINGLE_OPTION: ReadonlySet<ChoiceKind> = new Set<ChoiceKind>(["confirm", "chooseOption"]);
 
 const expandPrompt = (
+  state: MatchState,
   prompt: PromptState,
   seat: MatchSeat,
   maxActions: number,
@@ -199,12 +201,26 @@ const expandPrompt = (
   const max = Math.min(prompt.maxSelections, optionIds.length);
   const count = subsetCount(optionIds.length, min, max);
   if (count > BigInt(maxActions)) refuse(count);
-  return subsets(optionIds, min, max).map((selectedIds) => ({
-    type: "resolvePrompt",
-    seat,
-    promptId: prompt.id,
-    selectedIds,
-  }));
+
+  // Context-level legality the descriptor cannot express. Delegated to the
+  // engine's own authoritative predicate rather than re-implemented here, so
+  // there is exactly one legality engine. The preflight count above is taken
+  // BEFORE this filter, so it is conservative: it may refuse a prompt whose
+  // valid resolutions would have fit, but it can never admit an oversized one.
+  const context = prompt.resolutionContext;
+  const legal =
+    context?.intent === "effectPlaySelection"
+      ? (selectedIds: string[]) => isValidPlaySelection(state, context, selectedIds)
+      : () => true;
+
+  return subsets(optionIds, min, max)
+    .filter(legal)
+    .map((selectedIds) => ({
+      type: "resolvePrompt",
+      seat,
+      promptId: prompt.id,
+      selectedIds,
+    }));
 };
 
 export function expandDescriptor(
@@ -325,7 +341,7 @@ export function expandDescriptor(
           `resolvePrompt descriptor references unknown prompt ${descriptor.promptId}.`,
         );
       }
-      return expandPrompt(prompt, playerSeat, maxActions);
+      return expandPrompt(state, prompt, playerSeat, maxActions);
     }
 
     default:
