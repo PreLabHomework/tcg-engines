@@ -57,6 +57,11 @@ export interface SearchOptions {
    * variation move first. Ordering never changes the result, only the cost.
    */
   ordering?: "pv-first" | "none";
+  /**
+   * "alpha-beta" prunes; "none" is plain minimax, kept as the reference the
+   * pruned search is tested against.
+   */
+  pruning?: "alpha-beta" | "none";
 }
 
 export const DEFAULT_SEARCH_NODE_BUDGET = 200_000;
@@ -87,20 +92,27 @@ function createSearcher(options: SearchOptions, perspective: MatchSeat): Engine 
   const nodeBudget = options.nodeBudget ?? DEFAULT_SEARCH_NODE_BUDGET;
   const evaluate = options.evaluate ?? defaultEvaluate;
   const ordering = options.ordering ?? "pv-first";
+  const pruning = options.pruning ?? "alpha-beta";
   const expandOptions = { maxActions: options.maxActions };
 
   const engine: Engine = {
     searchedNodes: 0,
     run(root, depth, pvHint) {
-      return minimax(root, depth, 0, pvHint);
+      return minimax(root, depth, 0, pvHint, -Infinity, Infinity);
     },
   };
 
+  /**
+   * Explicit MAX/MIN by ownership, with alpha and beta carried normally. No
+   * sign flipping: consecutive same-seat decisions stay on the same side.
+   */
   const minimax = (
     node: SearchWorld,
     depth: number,
     ply: number,
     pvHint: readonly EngineCommand[],
+    alphaIn: number,
+    betaIn: number,
   ): Scored => {
     engine.searchedNodes++;
     if (engine.searchedNodes > nodeBudget) throw new IncompleteIteration("node-budget");
@@ -139,6 +151,8 @@ function createSearcher(options: SearchOptions, perspective: MatchSeat): Engine 
 
     const maximizing = mover === perspective;
     let best: { score: number; index: number; pv: EngineCommand[] } | null = null;
+    let alpha = alphaIn;
+    let beta = betaIn;
 
     for (const { action, index } of visit) {
       const step = node.apply(action);
@@ -149,13 +163,29 @@ function createSearcher(options: SearchOptions, perspective: MatchSeat): Engine 
         );
       }
       const childHint = hint && sameCommand(action, hint) ? pvHint.slice(1) : [];
-      const child = minimax(step.world, depth - 1, ply + 1, childHint);
+      const child = minimax(step.world, depth - 1, ply + 1, childHint, alpha, beta);
 
-      const better =
-        best === null ||
-        (maximizing ? child.score > best.score : child.score < best.score) ||
-        (child.score === best.score && index < best.index);
-      if (better) best = { score: child.score, index, pv: [action, ...child.pv] };
+      // Tie-breaking differs by mode, deliberately.
+      //  - Plain minimax: every child's score is EXACT, so equal scores can be
+      //    resolved by canonical index, making the result ordering-invariant.
+      //  - Alpha-beta: a pruned child returns a BOUND, not its true value. A
+      //    child cut off at exactly the current best may truly be worse, so
+      //    switching to it on an index tie could pick a losing move. Only a
+      //    strict improvement may replace the best.
+      const improves = maximizing
+        ? child.score > (best?.score ?? -Infinity)
+        : child.score < (best?.score ?? Infinity);
+      const exactTie =
+        pruning === "none" && best !== null && child.score === best.score && index < best.index;
+      if (best === null || improves || exactTie) {
+        best = { score: child.score, index, pv: [action, ...child.pv] };
+      }
+
+      if (pruning === "alpha-beta") {
+        if (maximizing) alpha = Math.max(alpha, best.score);
+        else beta = Math.min(beta, best.score);
+        if (alpha >= beta) break;
+      }
     }
 
     return { score: best!.score, pv: best!.pv };
@@ -164,10 +194,17 @@ function createSearcher(options: SearchOptions, perspective: MatchSeat): Engine 
   return engine;
 }
 
-/** A single fixed-depth search with no iterative deepening and no ordering. */
+/**
+ * A single fixed-depth search: no iterative deepening, no ordering, and no
+ * pruning unless asked. This is the plain-minimax REFERENCE that the
+ * optimised search is tested against.
+ */
 export function searchFixedDepth(world: SearchWorld, options: SearchOptions): SearchResult {
   const perspective = options.perspective ?? world.perspective;
-  const searcher = createSearcher({ ...options, ordering: "none" }, perspective);
+  const searcher = createSearcher(
+    { ...options, ordering: "none", pruning: options.pruning ?? "none" },
+    perspective,
+  );
   try {
     const result = searcher.run(world, options.maxDepth, []);
     return {

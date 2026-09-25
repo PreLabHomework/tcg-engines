@@ -161,7 +161,8 @@ describe("iterative deepening", () => {
 
   test("8. deepening 1 -> 3 matches a standalone depth-3 search", () => {
     const tree = uniform(6);
-    const deepened = search(world(tree), { maxDepth: 3, evaluate: scripted });
+    // Unpruned, so every score is exact and move identity must match too.
+    const deepened = search(world(tree), { maxDepth: 3, evaluate: scripted, pruning: "none" });
     const standalone = solve(tree, 3);
 
     expect(deepened.status).toBe("complete");
@@ -173,7 +174,7 @@ describe("iterative deepening", () => {
   test("8b. the same holds on a real engine position, with and without ordering", () => {
     const standalone = searchFixedDepth(blocker(), { maxDepth: 3 });
     for (const ordering of ["pv-first", "none"] as const) {
-      const deepened = search(blocker(), { maxDepth: 3, ordering });
+      const deepened = search(blocker(), { maxDepth: 3, ordering, pruning: "none" });
       expect(deepened.score).toBe(standalone.score);
       expect(deepened.principalVariation).toEqual(standalone.principalVariation);
     }
@@ -183,7 +184,13 @@ describe("iterative deepening", () => {
     // Uniform branching 3: iterations cost 4, 13, 40, 121 nodes, so cumulative
     // 57 after depth 3. A budget of 100 completes 1..3 and exhausts during 4.
     const tree = uniform(6);
-    const result = search(world(tree), { maxDepth: 6, evaluate: scripted, nodeBudget: 100 });
+    // Unpruned so the node arithmetic above is exact.
+    const result = search(world(tree), {
+      maxDepth: 6,
+      evaluate: scripted,
+      nodeBudget: 100,
+      pruning: "none",
+    });
     const depth3 = solve(tree, 3);
 
     expect(result.status).toBe("partial");
@@ -213,6 +220,87 @@ describe("iterative deepening", () => {
     expect(result.reason).toBe("expansion-too-large");
     expect(result.completedDepth).toBe(0);
     expect(result.bestAction).toBeNull();
+  });
+});
+
+describe("1C-3d: alpha-beta", () => {
+  /** Deterministic pseudo-random trees with deliberately frequent ties. */
+  const randomTree = (depth: number, seed: number, owners: string): Tree => {
+    let s = seed;
+    const next = () => {
+      s = (s * 1103515245 + 12345) % 2147483648;
+      return s;
+    };
+    const build = (d: number, ply: number): Tree => {
+      if (d === 0) return { value: next() % 7 };
+      const mover = owners[ply % owners.length] === "S" ? "south" : "north";
+      const width = 2 + (next() % 3);
+      return {
+        mover,
+        value: next() % 7,
+        moves: Object.fromEntries(
+          Array.from({ length: width }, (_, i) => [`m${i}`, build(d - 1, ply + 1)]),
+        ),
+      };
+    };
+    return build(depth, 0);
+  };
+
+  /** The exact minimax value of a move, independent of the search under test. */
+  const valueOf = (tree: Tree, depth: number, move: string) => {
+    if (!("moves" in tree)) throw new Error("no moves");
+    return solve(tree.moves[move]!, depth - 1).score;
+  };
+
+  test("the root score equals plain minimax on many trees, including ties", () => {
+    // Owner patterns include same-seat runs, not just strict alternation.
+    for (const owners of ["SN", "SSN", "SNN", "SSNN", "NSSN"]) {
+      for (let seed = 1; seed <= 25; seed++) {
+        const tree = randomTree(5, seed, owners);
+        const reference = solve(tree, 5);
+        const pruned = search(world(tree), { maxDepth: 5, evaluate: scripted });
+        expect({ owners, seed, score: pruned.score }).toEqual({
+          owners,
+          seed,
+          score: reference.score,
+        });
+      }
+    }
+  });
+
+  test("the chosen move genuinely achieves the root score", () => {
+    // Among equally-good moves alpha-beta may pick a different one than plain
+    // minimax. What it must never do is pick a move WORSE than the root value.
+    for (const owners of ["SN", "SSN", "SNN"]) {
+      for (let seed = 1; seed <= 25; seed++) {
+        const tree = randomTree(5, seed, owners);
+        const pruned = search(world(tree), { maxDepth: 5, evaluate: scripted });
+        expect(valueOf(tree, 5, label(pruned.bestAction)!)).toBe(pruned.score);
+      }
+    }
+  });
+
+  test("the PV ends in a position whose value is the root score", () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const tree = randomTree(4, seed, "SSN");
+      const result = search(world(tree), { maxDepth: 4, evaluate: scripted });
+      let node: Tree = tree;
+      for (const action of result.principalVariation) {
+        if (!("moves" in node)) break;
+        node = node.moves[label(action)!]!;
+      }
+      expect(scripted(world(node), "south")).toBe(result.score);
+    }
+  });
+
+  test("pruning never increases the node count, and is deterministic", () => {
+    const tree = randomTree(6, 7, "SN");
+    const plain = search(world(tree), { maxDepth: 6, evaluate: scripted, pruning: "none" });
+    const pruned = search(world(tree), { maxDepth: 6, evaluate: scripted });
+    const again = search(world(tree), { maxDepth: 6, evaluate: scripted });
+
+    expect(pruned.searchedNodes).toBeLessThanOrEqual(plain.searchedNodes);
+    expect(again).toEqual(pruned);
   });
 });
 
