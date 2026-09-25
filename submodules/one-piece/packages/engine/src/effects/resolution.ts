@@ -2947,6 +2947,13 @@ export function resolveEffectChoicePrompt(
       ) {
         return false;
       }
+      // Refuse an over-budget combination AT SUBMISSION. Previously it was
+      // accepted here and only rejected later during execution, which closed
+      // the prompt and silently played nothing, costing the whole effect with
+      // no chance to re-choose.
+      if (!selectionSatisfiesTotalConstraint(state, selectedIds, context.action.totalConstraint)) {
+        return false;
+      }
       enqueueResolution(
         state,
         {

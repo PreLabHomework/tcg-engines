@@ -849,7 +849,17 @@ export function candidatesForPlayAction(
       ) &&
       (!action.differentColorFromPreviousCharacter ||
         (previousColors.size > 0 && card.color.every((color) => !previousColors.has(color)))) &&
-      (!action.sameNameAsPreviousCard || cardNames(card).some((name) => previousNames.has(name)))
+      (!action.sameNameAsPreviousCard || cardNames(card).some((name) => previousNames.has(name))) &&
+      // Prompt legality: every offered option must belong to at least one legal
+      // selection. For an upper-bound total ("lte"/"lt") with non-negative
+      // values, adding cards can only raise the total, so a card that already
+      // fails ALONE can never be part of a legal set and must not be offered.
+      // Deliberately not applied to "gte"/"eq": there a card that fails alone
+      // may still be legal in combination.
+      (action.totalConstraint === undefined ||
+        (action.totalConstraint.comparison !== "lte" &&
+          action.totalConstraint.comparison !== "lt") ||
+        selectionSatisfiesTotalConstraint(state, [instanceId], action.totalConstraint))
     );
   });
 }
