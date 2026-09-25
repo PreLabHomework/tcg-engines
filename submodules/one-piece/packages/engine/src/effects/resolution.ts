@@ -1257,11 +1257,13 @@ export function processEffectBlock(
         : action;
     const bindsTriggerEventTarget =
       (action.action === "returnToDeck" && action.triggerEventTarget) ||
-      (action.action === "copyPower" && action.triggerEventAttacker);
+      (action.action === "copyPower" && action.triggerEventAttacker) ||
+      (action.action === "grantKeyword" && action.triggerEventTarget);
     const triggerEventTargetId =
       action.action === "returnToDeck" && action.triggerEventTarget
         ? item.triggerEvent?.targetInstanceId
-        : action.action === "copyPower" && action.triggerEventAttacker
+        : (action.action === "copyPower" && action.triggerEventAttacker) ||
+            (action.action === "grantKeyword" && action.triggerEventTarget)
           ? item.triggerEvent?.instanceId
           : undefined;
     const triggerEventTargetPool = bindsTriggerEventTarget
