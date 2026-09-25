@@ -23,7 +23,7 @@ export const op17GaHaHaHa017: EventCard = {
   cost: 1,
   traits: ["The Four Emperors Whitebeard Pirates"],
   effect:
-    '[Counter] Up to 1 of your Leader with a type including "Whitebeard Pirates" or up to 1 of your Characters with a type including "Whitebeard Pirates" gains +2000 power during this battle. Then, give up to 1 of your opponent\'s Leader or Characters 2000 power during this turn.',
+    '[Counter] Up to 1 of your Leader with a type including "Whitebeard Pirates" or up to 1 of your Characters with a type including "Whitebeard Pirates" gains +2000 power during this battle. Then, give up to 1 of your opponent\'s Leader or Characters -2000 power during this turn.',
   effects: {
     effects: [
       {
