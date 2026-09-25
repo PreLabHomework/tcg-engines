@@ -66,6 +66,10 @@ export const op16Yamato079: LeaderCard = {
             },
             keyword: "rush",
             duration: "thisTurn",
+            // "THAT Character gains [Rush]": bind the grant to the card that was
+            // played. The target's Land of Wano filter then checks the played
+            // card rather than offering a free choice of recipient.
+            triggerEventTarget: true,
           },
         ],
       },
