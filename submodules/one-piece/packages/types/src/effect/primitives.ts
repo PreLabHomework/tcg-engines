@@ -82,4 +82,11 @@ export type EffectTrigger =
   | "whenBecomesRested"
   | "whenCharacterRestedByEffect"
   | "whenCardsTrashedFromHandByEffect"
-  | "whenYouTakeDamage";
+  | "whenYouTakeDamage"
+  /**
+   * A friendly card OTHER than this one declared an attack. Distinct from
+   * "whenAttacking", which fires only on the attacking card, so adding it
+   * cannot change any existing card. Restrict the observed attacker with
+   * eventFilter.filters (the attack event carries it as event.instanceId).
+   */
+  | "whenFriendlyCardAttacks";

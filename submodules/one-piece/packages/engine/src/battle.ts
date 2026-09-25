@@ -885,6 +885,16 @@ export function beginAttack(
     targetInstanceId: targetId,
   };
   enqueueEffectsForTrigger(state, attackerId, seat, "whenAttacking", undefined, attackEvent);
+  // Friendly cards observing ANOTHER card's attack use their own trigger;
+  // fanning "whenAttacking" out instead would make every ordinary [When
+  // Attacking] card fire on other cards' attacks. The attacker is excluded.
+  enqueueInPlayEffectsForTrigger(
+    state,
+    "whenFriendlyCardAttacks",
+    attackEvent,
+    [seat],
+    [attackerId],
+  );
   // "When your opponent attacks" can only live on the defending player's
   // in-play cards, and the attacking (turn) player's [When Attacking] effects
   // enqueue above, so 8-6-1 turn-player-first ordering already holds.

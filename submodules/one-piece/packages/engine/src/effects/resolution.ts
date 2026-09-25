@@ -84,6 +84,8 @@ function triggerLabel(trigger: EffectTrigger): string {
       return "[On Play]";
     case "whenAttacking":
       return "[When Attacking]";
+    case "whenFriendlyCardAttacks":
+      return "[When Your Card Attacks]";
     case "onBlock":
       return "[On Block]";
     case "onKo":

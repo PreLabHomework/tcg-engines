@@ -216,6 +216,7 @@ export const OPTIONAL_TRIGGER_OPENERS: Record<string, OptionalOpener[]> = {
   "activate:main": ["activate"],
   whenattacking: ["attack"],
   onopponentattack: ["attack"],
+  whenfriendlycardattacks: ["attack"],
   onyouropponentsattack: ["attack"],
   whenattacked: ["attack"],
   onblock: ["attack"],
