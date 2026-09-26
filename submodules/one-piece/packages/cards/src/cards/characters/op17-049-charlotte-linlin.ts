@@ -39,6 +39,20 @@ export const op17CharlotteLinlin049: CharacterCard = {
   effects: {
     effects: [
       {
+        trigger: "onPlay",
+        actions: [
+          {
+            action: "choice",
+            // "Your opponent chooses one": the OPPONENT picks the mode.
+            player: "opponent",
+            options: [
+              [{ action: "draw", player: "self", amount: 2 }],
+              [{ action: "trashFromHand", player: "opponent", amount: 2 }],
+            ],
+          },
+        ],
+      },
+      {
         trigger: "onOpponentAttack",
         costs: [
           {
