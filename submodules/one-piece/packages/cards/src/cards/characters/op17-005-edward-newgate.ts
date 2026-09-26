@@ -46,6 +46,21 @@ export const op17EdwardNewgate005: CharacterCard = {
   effect:
     "If your opponent has a Character with 10000 power or more, give this card in your hand -4 cost.\n[On Play] Your monocolored Leader's base power becomes 8000 until the end of your opponent's next End Phase.",
   effects: {
+    effects: [
+      {
+        trigger: "onPlay",
+        // "Your monocolored Leader": leaderMulticolored with value false.
+        conditions: [{ condition: "leaderMulticolored", value: false }],
+        actions: [
+          {
+            action: "setBasePower",
+            target: { player: "self", zones: ["leader"], count: { amount: "all" } },
+            value: 8000,
+            duration: "untilEndOfOpponentNextEndPhase",
+          },
+        ],
+      },
+    ],
     permanentEffects: [
       {
         conditions: [
