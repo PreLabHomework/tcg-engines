@@ -94,8 +94,11 @@ function evaluateCondition(
             ? (leader.traits ?? []).includes(condition.trait)
             : (leader.traits ?? []).some((trait) => trait.includes(condition.trait)),
       };
-    case "leaderMulticolored":
-      return { supported: true, matches: leader.color.length > 1 };
+    case "leaderMulticolored": {
+      const isMulticolored = leader.color.length > 1;
+      // value defaults to true: omitting it keeps the original meaning exactly.
+      return { supported: true, matches: isMulticolored === (condition.value ?? true) };
+    }
     case "leaderColor":
       return { supported: true, matches: leader.color.includes(condition.color) };
     case "zoneCount": {
