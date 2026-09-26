@@ -28,6 +28,35 @@ export const op17Izo003: CharacterCard = {
     "[Rush: Character]\n[On Play] If your Leader is [Edward.Newgate] or has the {Land of Wano} type, give up to 1 of your opponent's rested Characters -6000 power during this turn.",
   effects: {
     keywords: ["rushCharacter"],
+    effects: [
+      {
+        trigger: "onPlay",
+        // Same Leader gate as OP17-007 Kouzuki Oden, in the same block-level form.
+        conditions: [
+          {
+            condition: "compound",
+            operator: "or",
+            conditions: [
+              { condition: "leaderName", name: "Edward.Newgate" },
+              { condition: "leaderTrait", trait: "Land of Wano", match: "includes" },
+            ],
+          },
+        ],
+        actions: [
+          {
+            action: "modifyPower",
+            target: {
+              player: "opponent",
+              zones: ["character"],
+              count: { amount: 1, upTo: true },
+              filters: [{ filter: "state", value: "rested" }],
+            },
+            value: -6000,
+            duration: "thisTurn",
+          },
+        ],
+      },
+    ],
   },
   i18n: op17Izo003I18n,
 };
