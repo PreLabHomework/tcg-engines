@@ -48,6 +48,52 @@ export const op17EdwardNewgate040: CharacterCard = {
           },
         ],
       },
+      {
+        // "When your Leader ... attacks": another friendly card declares the attack.
+        trigger: "whenFriendlyCardAttacks",
+        eventFilter: {
+          filters: [
+            { filter: "cardCategory", value: "leader" },
+            { filter: "trait", value: "Rocks Pirates", match: "includes" },
+          ],
+        },
+        costs: [{ cost: "trashFromHand", amount: 1 }],
+        actions: [
+          {
+            action: "modifyPower",
+            target: { player: "self", zones: ["leader"], count: { amount: "all" } },
+            value: 3000,
+            duration: "thisBattle",
+          },
+        ],
+        optional: true,
+        oncePerTurn: true,
+        // One printed [Once Per Turn] ability under two triggers.
+        oncePerTurnKey: "op17-040:leader-attacks-or-is-attacked",
+      },
+      {
+        // "... or is attacked": the Leader is the attack's target.
+        trigger: "onOpponentAttack",
+        eventFilter: {
+          targetFilters: [
+            { filter: "cardCategory", value: "leader" },
+            { filter: "trait", value: "Rocks Pirates", match: "includes" },
+          ],
+        },
+        costs: [{ cost: "trashFromHand", amount: 1 }],
+        actions: [
+          {
+            action: "modifyPower",
+            target: { player: "self", zones: ["leader"], count: { amount: "all" } },
+            value: 3000,
+            duration: "thisBattle",
+          },
+        ],
+        optional: true,
+        oncePerTurn: true,
+        // One printed [Once Per Turn] ability under two triggers.
+        oncePerTurnKey: "op17-040:leader-attacks-or-is-attacked",
+      },
     ],
   },
   i18n: op17EdwardNewgate040I18n,
