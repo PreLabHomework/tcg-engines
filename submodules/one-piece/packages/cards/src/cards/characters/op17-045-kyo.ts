@@ -48,6 +48,21 @@ export const op17Kyo045: CharacterCard = {
         ],
       },
     ],
+    replacementEffects: [
+      {
+        replacedEvent: "removeFromField",
+        source: "opponentEffect",
+        target: {
+          player: "self",
+          zones: ["character"],
+          count: { amount: 1 },
+        },
+        // The substitute is the replacement action: trash 2 from hand
+        // instead of the Character leaving the field. Omitting `mandatory`
+        // keeps it optional ("you may"), matching the printed text.
+        replacementAction: { action: "trashFromHand", player: "self", amount: 2 },
+      },
+    ],
   },
   i18n: op17Kyo045I18n,
 };
