@@ -56,6 +56,31 @@ export const op17RocksPirates056: EventCard = {
         ],
         optional: true,
       },
+      {
+        trigger: "counter",
+        actions: [
+          {
+            action: "modifyPower",
+            target: {
+              player: "self",
+              zones: ["leader", "character"],
+              count: {
+                amount: 1,
+                upTo: true,
+              },
+              filters: [
+                {
+                  filter: "trait",
+                  value: "Rocks Pirates",
+                  match: "includes",
+                },
+              ],
+            },
+            value: 2000,
+            duration: "thisBattle",
+          },
+        ],
+      },
     ],
   },
   i18n: op17RocksPirates056I18n,
