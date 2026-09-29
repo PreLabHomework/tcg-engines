@@ -73,9 +73,12 @@ export const op17RocksDXebec118: CharacterCard = {
             },
             filters: [
               {
+                // {Rocks Pirates} is BRACED: CR 2-4-3 makes it the exact type, so
+                // "Former Rocks Pirates" does not qualify. The OP17 FAQ uses the
+                // same distinction ("the {Rocks Pirates} type" here, versus a type
+                // "including 'Rocks Pirates'" for OP17-039).
                 filter: "trait",
                 value: "Rocks Pirates",
-                match: "includes",
               },
             ],
           },
